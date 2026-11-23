@@ -1,0 +1,50 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.18, pytest-9.2.0, pluggy-1.7.0 -- /home/claude/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/claude/entrega/app
+plugins: anyio-4.16.0
+collecting ... collected 41 items
+
+tests/test_almacenamiento.py::test_guarda_y_recupera_preguntas_y_respuestas PASSED [  2%]
+tests/test_almacenamiento.py::test_dos_conversaciones_de_una_misma_persona PASSED [  4%]
+tests/test_almacenamiento.py::test_otro_usuario_no_lee_ni_escribe_aunque_conozca_el_id PASSED [  7%]
+tests/test_almacenamiento.py::test_token_invalido_y_id_malformado PASSED [  9%]
+tests/test_almacenamiento.py::test_no_anuncia_exito_si_el_guardado_falla PASSED [ 12%]
+tests/test_almacenamiento.py::test_validaciones_de_mensaje PASSED        [ 14%]
+tests/test_almacenamiento.py::test_turnos_recientes_limita_a_cuatro PASSED [ 17%]
+tests/test_almacenamiento.py::test_login_incorrecto PASSED               [ 19%]
+tests/test_app.py::test_flujo_completo_guardar_cerrar_sesion_y_recuperar PASSED [ 21%]
+tests/test_app.py::test_el_historial_llega_al_sistema_como_turnos PASSED [ 24%]
+tests/test_app.py::test_aislamiento_entre_dos_usuarios_en_la_interfaz PASSED [ 26%]
+tests/test_app.py::test_acciones_sin_sesion_se_rechazan PASSED           [ 29%]
+tests/test_app.py::test_login_con_datos_invalidos PASSED                 [ 31%]
+tests/test_app.py::test_si_no_se_guarda_no_se_muestra_exito PASSED       [ 34%]
+tests/test_app.py::test_validacion_de_entrada PASSED                     [ 36%]
+tests/test_app.py::test_la_interfaz_gradio_se_construye PASSED           [ 39%]
+tests/test_config.py::test_config_valida PASSED                          [ 41%]
+tests/test_config.py::test_config_rechaza_valores_invalidos[SUPABASE_URL-http://abc.supabase.co] PASSED [ 43%]
+tests/test_config.py::test_config_rechaza_valores_invalidos[SUPABASE_URL-https://evil.example.com] PASSED [ 46%]
+tests/test_config.py::test_config_rechaza_valores_invalidos[SUPABASE_PUBLISHABLE_KEY-sb_secret_x] PASSED [ 48%]
+tests/test_config.py::test_config_rechaza_valores_invalidos[CORPUS_ID-../x] PASSED [ 51%]
+tests/test_config.py::test_config_rechaza_valores_invalidos[EMBEDDINGS_REVISION-abc] PASSED [ 53%]
+tests/test_sistema.py::test_pregunta_del_corpus_con_fuentes PASSED       [ 56%]
+tests/test_sistema.py::test_sin_evidencia_pide_aclaracion_sin_inventar PASSED [ 58%]
+tests/test_sistema.py::test_entrada_incompleta_sin_codigo_pide_aclaracion PASSED [ 60%]
+tests/test_sistema.py::test_herramienta_mcp_real_por_stdio PASSED        [ 63%]
+tests/test_sistema.py::test_codigo_desconocido_no_es_falla_tecnica PASSED [ 65%]
+tests/test_sistema.py::test_codigo_inventado_por_el_modelo_se_bloquea PASSED [ 68%]
+tests/test_sistema.py::test_codigo_viene_de_la_memoria_de_la_misma_conversacion PASSED [ 70%]
+tests/test_sistema.py::test_accion_no_permitida_se_rechaza PASSED        [ 73%]
+tests/test_sistema.py::test_la_accion_guardar_informe_ya_no_existe PASSED [ 75%]
+tests/test_sistema.py::test_falla_tecnica_controlada_en_la_busqueda PASSED [ 78%]
+tests/test_sistema.py::test_cita_inexistente_falla_validacion PASSED     [ 80%]
+tests/test_sistema.py::test_repeticion_y_limites PASSED                  [ 82%]
+tests/test_sistema.py::test_entrada_invalida PASSED                      [ 85%]
+tests/test_sistema.py::test_buscar_documentos_pasa_corpus_modelo_y_revision PASSED [ 87%]
+tests/test_sistema.py::test_buscar_documentos_rechaza_resultados_invalidos PASSED [ 90%]
+tests/test_sistema.py::test_catalogo_mcp_solo_expone_la_herramienta_de_lectura PASSED [ 92%]
+tests/test_sistema.py::test_mcp_rechaza_argumento_invalido PASSED        [ 95%]
+tests/test_supabase_real.py::test_persistencia_y_recuperacion SKIPPED    [ 97%]
+tests/test_supabase_real.py::test_rls_bloquea_a_otro_usuario_saltandose_la_comprobacion_de_la_app SKIPPED [100%]
+
+======================== 39 passed, 2 skipped in 18.61s ========================

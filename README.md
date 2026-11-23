@@ -1,68 +1,17 @@
-# RESUA - Sistema de Registro de Avistamientos de Especies Silvestres
+# RESUA · Asistente de avistamientos de fauna silvestre (Armenia, Quindío)
 
-Manuela Velez Betancourt - Juan Diego Rojas Abarka
+Proyecto semestral de *Inteligencia Artificial Generativa y Sistemas Inteligentes* (EAM 2026-II).
+RESUA es una aplicación web con chat que responde sobre cómo **registrar un avistamiento**, cómo **consultar su estado**
+y cómo funciona la **identificación de especies**, usando RAG sobre documentos de RESUA, un agente con decisiones
+validadas y un servidor MCP de seguimiento. Cada persona inicia sesión y sus conversaciones se guardan en Supabase.
 
-## Descripción
+| Qué | Dónde |
+|---|---|
+| Aplicación (código, instalación, despliegue) | [`app/README.md`](app/README.md) |
+| Documentación integral de los tres cortes | [`BITACORA_PROYECTO.md`](BITACORA_PROYECTO.md) |
+| Notebooks de los cortes 1-3 (Colab) | [`notebooks/`](notebooks/) |
+| Resultados de pruebas | [`evidencias/`](evidencias/) |
+| Presentación | [`app/presentacion_proyecto.pdf`](app/presentacion_proyecto.pdf) |
+| URL desplegada | **PENDIENTE: completar tras desplegar en Render** |
 
-RESUA es un sistema orientado al registro y seguimiento de avistamientos de especies silvestres en zonas urbanas de Armenia, Quindío.
-
-El proyecto incorpora un sistema de recuperación aumentada por generación (RAG) que permite consultar información documental relacionada con el registro de avistamientos, la evidencia disponible y el seguimiento de reportes.
-
-## Tecnologías utilizadas
-
-- Python
-- Google Colab
-- Supabase
-- PostgreSQL y extensión pgvector
-- Sentence Transformers
-- Groq
-- Pandas y NumPy
-- BM25 para recuperación léxica
-- Pydantic para validación de respuestas
-
-## Modelo de embeddings
-
-- Modelo: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
-- Dimensión: 384
-
-## Modelo generativo
-
-- Proveedor: Groq
-- Modelo: `openai/gpt-oss-20b`
-
-## Recuperación de información
-
-Se evaluaron tres estrategias:
-
-1. Búsqueda semántica.
-2. Búsqueda híbrida mediante BM25 y Reciprocal Rank Fusion (RRF).
-3. Búsqueda híbrida con reranking.
-
-La estrategia seleccionada para el sistema fue la búsqueda semántica (`A_semantica`), considerando el equilibrio entre calidad de recuperación y tiempo de ejecución observado durante las pruebas.
-
-## Configuración e instalación
-
-1. Clonar el repositorio.
-2. Instalar las dependencias:
-
-   `pip install -r requirements.txt`
-
-3. Crear un proyecto en Supabase.
-4. Ejecutar el script `database/resua_vector_db.sql` en el SQL Editor de Supabase, revisando previamente si ya existen las tablas, índices y políticas.
-5. Configurar las credenciales de Supabase y Groq mediante variables de entorno o los secretos de Google Colab.
-6. Abrir y ejecutar el notebook ubicado en `notebooks/`.
-
-## Estructura del repositorio
-
-- `database/`: configuración SQL de la base de datos vectorial.
-- `notebooks/`: implementación y evaluación del sistema RAG.
-- `requirements.txt`: dependencias de Python.
-- `.env.example`: plantilla de variables de entorno.
-
-## Seguridad
-
-No se deben publicar claves de Supabase, claves de Groq ni credenciales de acceso en el repositorio.
-
-## Estado del proyecto
-
-Proyecto académico en desarrollo.
+Inicio rápido: ver «Ejecución desde un clon limpio» en [`app/README.md`](app/README.md).

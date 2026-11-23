@@ -1,0 +1,8 @@
+# Versiones de las prácticas de Colab (Clases 8-11) más Gradio. Python 3.11 o superior (usa asyncio.timeout).
+gradio==6.32.0
+mcp==2.3.0
+groq==1.7.0
+pydantic==2.13.5
+supabase==2.32.0
+sentence-transformers==6.1.0
+python-dotenv>=1.0
