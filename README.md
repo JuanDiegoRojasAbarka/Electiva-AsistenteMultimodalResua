@@ -8,7 +8,7 @@ validadas y un servidor MCP de seguimiento. Cada persona inicia sesión y sus co
 | Qué | Dónde |
 |---|---|
 | Aplicación (código, instalación, despliegue) | [`app/README.md`](app/README.md) |
-| Documentación integral de los tres cortes | [`BITACORA_PROYECTO.md`](Bitacora_Proyecto.md) |
+| Documentación integral de los tres cortes | [`BITACORA_PROYECTO.md`](BITACORA_PROYECTO.md) |
 | Notebooks de los cortes 1-3 (Colab) | [`notebooks/`](notebooks/) |
 | Resultados de pruebas | [`evidencias/`](evidencias/) |
 | Presentación | [`app/presentacion_proyecto.pdf`](app/presentacion_proyecto.pdf) |
