@@ -61,6 +61,7 @@ Gradio (`app.py`) → `sistema.py` (agente + RAG + cliente MCP) → Groq `openai
 | D5 | **Retirar** el MCP de archivos y la acción `guardar_informe` | Exigía Node en Render y una escritura en disco efímero del servidor; la persistencia pedida es Supabase. El MCP propio de lectura cubre el requisito |
 | D6 | Política de lectura de `resua_fragmentos` para autenticados | Con RLS por `owner_id`, otros usuarios no verían el corpus público |
 | D7 | `CORPUS_ID` y `EMBEDDINGS_REVISION` por entorno | Antes llegaban por el JSON subido a Colab |
+| D9 | Segunda herramienta MCP `buscar_avistamientos_por_especie` (solo lectura) y campo `especie_reportada` en los registros ficticios | Solicitud del equipo: buscar avistamientos por especie, no solo por código. Se amplía el contrato de decisión con el campo `especie`; no se añade ninguna escritura |
 
 ### Cambios al extraer el código
 `userdata`, `files.upload`, `display`, parámetros `#@param` → `config.py`/funciones; `MEMORIA` (dict volátil) → Supabase;
@@ -73,9 +74,36 @@ reemplazó por validación de forma y procedencia en cada consulta (la copia loc
 3. `postgrest.auth(token)` no modifica las cabeceras de la sesión HTTP en supabase-py 2.32 → el token se inyecta con
    `ClientOptions(headers={"Authorization": ...})` al crear el cliente (verificado inspeccionando las cabeceras).
 4. El entorno de trabajo se reinició y eliminó directorios vacíos; se recrearon y se volvieron a ejecutar las pruebas.
+5. **Carpeta `app/supabase/` con el mismo nombre que la librería `supabase`**: si la librería no estaba instalada en el Python
+   usado, Python importaba la carpeta y fallaba con `cannot import name 'ClientOptions' … (unknown location)`. Se renombró a `app/sql/`.
+6. **Cliente `AsyncGroq` reutilizado entre preguntas**: Gradio ejecuta cada mensaje en un `asyncio.run()` nuevo y el cliente quedaba
+   ligado al primer bucle; con el servidor local de pruebas, la 1.ª llamada funcionó y la 2.ª falló (`APIConnectionError`), lo que en
+   la interfaz aparecía como `ERROR_TECNICO`. Ahora se crea y cierra un cliente por llamada (prueba de regresión
+   `test_preguntas_seguidas_con_el_cliente_real_de_groq`). Además `ERROR_TECNICO` registra la traza completa en la consola.
+7. **`tool_use_failed` de Groq** (observado en la ejecución local del equipo, consulta «¿Cuál es el estado del avistamiento AVS-1001?»):
+   el modelo respondió con una llamada nativa `tool_mcp_consultar_estado_avistamiento` en lugar del JSON del contrato y Groq devolvió
+   HTTP 400. Causa probable: el contexto incluía el catálogo MCP con nombre y esquema, que se parece a la definición de una herramienta.
+   Cambios: el contexto describe las capacidades en prosa («acción del contrato, no es una herramienta nativa»), el prompt prohíbe
+   function calling nativo y la app reintenta **una vez** con un recordatorio de formato (la generación fallida nunca se ejecuta).
+   Cuatro pruebas lo cubren con un cliente simulado; **no se verificó con el modelo real**, y como el comportamiento del modelo es
+   probabilístico, el reintento reduce pero no garantiza la ausencia del fallo.
+8. **`REPETICION_SIN_AVANCE` en todas las consultas de estado AVS** (observado por el equipo): el recorrido mostraba paso 1 con la
+   operación MCP ejecutada y `RESULTADO_RECIBIDO`, y en el paso 2 el modelo volvía a proponer la misma operación; el control aborta
+   ante cualquier repetición, por lo que nunca se llegaba a responder. Causas: el prompt no decía qué hacer tras recibir un resultado
+   y el control era demasiado estricto con una sola repetición. Cambios: (a) el prompt y el contexto indican «ya tienes el resultado
+   (etiquetas T1…), responde y cítalo»; (b) la primera repetición no se re-ejecuta, se avisa al modelo (evento `REPETICION_EVITADA`) y
+   se le da otra decisión; una segunda repetición detiene el recorrido. Pruebas nuevas con modelo simulado; **no verificado con
+   el modelo real**: pendiente repetir la consulta AVS-1001/1002/1003/9999 desde la interfaz.
+9. **`ERROR_VALIDACION` en la consulta AVS-1001** (observado por el equipo): `recorrido` vacío y `detalle_error` «La respuesta está vacía
+   o excede el límite», es decir, la primera decisión del modelo fue `responder`/`aclarar`/`rechazar` con `respuesta` vacía y el
+   validador abortó el turno sin diagnóstico. Cambios: (a) el prompt dice que esas acciones exigen texto y que una pregunta de estado
+   con código AVS debe usar `consultar_estado_avistamiento`; (b) mensajes de validación específicos; (c) **una corrección por turno**:
+   se devuelve el motivo al modelo y la nueva decisión pasa por la misma validación (una segunda decisión inválida termina en
+   `ERROR_VALIDACION`); (d) la decisión inválida se registra en la consola y, con `RESUA_DEBUG=1`, se muestra como `ultima_decision`.
+   Probado con modelo simulado; **no verificado con el modelo real**.
 
 ## 7. Pruebas y resultados
-**Automáticas (ejecutadas):** `evidencias/resultados_pruebas_automaticas.txt` → **39 aprobadas, 2 omitidas** (las 2 omitidas son las de
+**Automáticas (ejecutadas):** `evidencias/resultados_pruebas_automaticas.txt` → **69 aprobadas, 2 omitidas** (las 2 omitidas son las de
 Supabase real, por falta de credenciales en este entorno).
 
 | Caso exigido | Cobertura | Estado |
@@ -109,5 +137,18 @@ Ver `app/README.md` §10.
 | Cortes 1-3 | `notebooks/Proyecto.ipynb` |
 | Agente + MCP (Clase 11) | `notebooks/RESUA_Clase_11_Agente_RAG_MCP.ipynb` |
 | Pruebas automáticas | `evidencias/resultados_pruebas_automaticas.txt` |
-| Esquema SQL y RLS | `app/supabase/esquema_conversaciones.sql` |
+| Esquema SQL y RLS | `app/sql/esquema_conversaciones.sql` |
 | Código de la aplicación | `app/*.py` |
+10. **Formato de citas del agente** (observado en la consola con el modelo real, consulta AVS-1001): la consulta MCP se ejecutó y el
+    modelo redactó el estado correcto, pero devolvió `citas: ["[T1]"]` (con corchetes) y no incluyó `[T1]` en el texto; la validación
+    falló en los pasos 2 y 3 y el turno terminó en `ERROR_VALIDACION`. Causa: el prompt del agente (heredado de la Clase 11) decía
+    «cítalas como [T1] y anótalas en citas», ambiguo; el prompt del RAG (Clase 8) sí tenía reglas explícitas. Cambios: reglas de
+    citación explícitas en el prompt, mensaje de corrección con ejemplo y `normalizar_decision`, que **solo repara la forma** (quita
+    corchetes de `citas`; añade al texto una etiqueta declarada y existente que falte). **Decisión D8 y su límite:** la normalización no
+    verifica que el texto se apoye de verdad en esa fuente, igual que la validación de citas en general (solo comprueba correspondencia);
+    una etiqueta inexistente sigue bloqueada. Probado con el caso observado y con modelo simulado; no verificado todavía con el modelo real.
+11. **Búsqueda por especie (cambio solicitado).** Se asignó especie reportada y nombre científico a los registros ficticios (AVS-1001 y
+    AVS-1004 pelícano pardo; 1002 zarigüeya; 1003 iguana verde; 1005 búho chico) y se añadió la herramienta con validación de entrada
+    (3-60 letras; rechaza `<script>`, números y cadenas largas), búsqueda sin tildes ni plural, y salida con `total`/`mostrados`. El
+    sistema valida la forma del resultado MCP. La especie se presenta como **reportada, no confirmada** salvo `identificacion_completada`.
+    Probado con el servidor MCP real por stdio y modelo simulado; **pendiente probar con el modelo real** desde la interfaz.

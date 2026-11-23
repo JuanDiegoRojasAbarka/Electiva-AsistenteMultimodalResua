@@ -6,6 +6,8 @@ Ejecución local:  python app.py   (lee app/.env)
 import asyncio
 import base64
 import json
+import logging
+import os
 import re
 import time
 
@@ -129,9 +131,14 @@ class Aplicacion:
         except Exception:
             return conv_id, chat, texto, gr.update(), "", "No pudimos guardar o procesar el mensaje. Intenta de nuevo."
         chat += [{"role": "user", "content": texto}, {"role": "assistant", "content": traza["respuesta"]}]
-        detalle = json.dumps({"estado": traza["estado"], "recorrido": traza["eventos"],
-                              "operaciones": traza["operaciones"], "duracion_ms": traza["duracion_ms"]},
-                             ensure_ascii=False, indent=2)
+        info = {"estado": traza["estado"], "recorrido": traza["eventos"],
+                "operaciones": traza["operaciones"], "duracion_ms": traza["duracion_ms"]}
+        if traza.get("tipo_error"):
+            info["tipo_error"] = traza["tipo_error"]
+            if os.environ.get("RESUA_DEBUG") == "1":   # el detalle puede contener datos internos: solo en depuración
+                info["detalle_error"] = traza.get("detalle_error")
+                info["ultima_decision"] = traza.get("ultima_decision")
+        detalle = json.dumps(info, ensure_ascii=False, indent=2)
         lista = gr.update(choices=self._opciones(alm), value=conv_id) if nueva else gr.update()
         panel_fuentes = (fuentes_md + "\n\n" if fuentes_md else "") + "```json\n" + detalle + "\n```"
         return conv_id, chat, "", lista, panel_fuentes, f"Estado: {traza['estado']}"
@@ -172,6 +179,7 @@ class Aplicacion:
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = cargar_config()
     sistema = Sistema(cfg)
     sistema.precalentar()                      # el modelo de embeddings se descarga aquí, una sola vez

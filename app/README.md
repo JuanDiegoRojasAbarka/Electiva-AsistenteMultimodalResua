@@ -3,7 +3,7 @@
 ## 1. Problema, usuarios y alcance
 **Problema.** Quien observa fauna silvestre en zonas urbanas de Armenia no sabe qué datos aportar, cómo seguir su reporte ni
 qué se puede afirmar sobre la especie. **Usuarios:** ciudadanos que reportan y personal que orienta el proceso.
-**Alcance:** consulta documental con fuentes, consulta de estado de un avistamiento por código `AVS-0000` y rechazo de
+**Alcance:** consulta documental con fuentes, consulta de estado de un avistamiento por código `AVS-0000`, búsqueda de avistamientos por especie y rechazo de
 acciones fuera de alcance. **Fuera de alcance:** modificar registros, aprobar identificaciones, asignar especies,
 emergencias veterinarias (se remiten a revisión humana). Los registros del MCP son **ficticios, de demostración**.
 
@@ -14,12 +14,18 @@ Navegador ── Gradio (app.py) ──► almacenamiento.py ──► Supabase 
                 └──► sistema.py ───────┘ (historial autorizado)
                         ├─ Groq (decide la siguiente acción, JSON validado con Pydantic)
                         ├─ buscar_documentos: embeddings + RPC resua_buscar_fragmentos (Supabase, A_semantica)
-                        └─ consultar_estado_avistamiento: cliente MCP ► servidor_mcp.py (stdio o MCP_URL)
+                        ├─ consultar_estado_avistamiento ┐ cliente MCP ► servidor_mcp.py (stdio o MCP_URL)
+                        └─ buscar_avistamientos_por_especie ┘
 ```
 1. La persona inicia sesión (Supabase Auth). `gr.State` guarda **su** sesión; nada de usuario es global.
 2. `app.py` valida la entrada, crea la conversación si es nueva y pide a `almacenamiento.py` los últimos 4 turnos.
 3. `sistema.atender()` ejecuta el ciclo del agente (máx. 3 decisiones, 2 operaciones, 90 s): el modelo propone una acción,
-   el programa la valida (citas, códigos AVS que aparezcan en la conversación, sin repetir operaciones) y la ejecuta.
+   el programa la valida (citas, códigos AVS que aparezcan en la conversación) y la ejecuta. Una operación idéntica **nunca se
+   ejecuta dos veces**: la primera repetición se avisa al modelo («ya tienes el resultado, responde») y una segunda detiene el
+   recorrido con `REPETICION_SIN_AVANCE`. Si la decisión del modelo incumple el contrato (p. ej. `responder` con texto vacío), se le devuelve el motivo y
+   se le da **una sola corrección** por turno (evento `DECISION_CORREGIDA`); la nueva decisión pasa por la misma validación.
+   Antes de validar, `normalizar_decision` repara solo la **forma** de las citas (`["[T1]"]` → `["T1"]`; añade al texto una etiqueta
+   declarada y existente que falte), sin inventar etiquetas ni contenido (evento `DECISION_NORMALIZADA`).
 4. Se guardan la pregunta y la respuesta (con citas y estado) y la interfaz muestra respuesta, fuentes y recorrido.
 
 | Módulo | Responsabilidad |
@@ -27,9 +33,9 @@ Navegador ── Gradio (app.py) ──► almacenamiento.py ──► Supabase 
 | `app.py` | Interfaz, sesión por visitante, eventos. No contiene lógica del RAG. |
 | `sistema.py` | Recuperación, agente, validaciones, cliente MCP. |
 | `almacenamiento.py` | Auth + conversaciones/mensajes; comprueba propietario antes de leer/escribir. |
-| `servidor_mcp.py` | MCP propio, una herramienta de **solo lectura**. |
+| `servidor_mcp.py` | MCP propio, dos herramientas de **solo lectura**: estado por código y búsqueda por especie. |
 | `config.py` | Lee y valida variables de entorno. |
-| `supabase/esquema_conversaciones.sql` | Tablas, índices y políticas RLS. |
+| `sql/esquema_conversaciones.sql` | Tablas, índices y políticas RLS. |
 
 ## 3. Corpus, embeddings y mejoras de recuperación
 Corpus didáctico de 2 documentos (`registro_avistamientos.md`, `seguimiento_identificacion.md`), 10 fragmentos por
@@ -46,7 +52,7 @@ el modelo (~470 MB).
 
 ## 5. Configuración de servicios
 ### Supabase
-1. En el proyecto del RAG, ejecute `supabase/esquema_conversaciones.sql` en el *SQL Editor*. Crea `resua_conversaciones` y
+1. En el proyecto del RAG, ejecute `sql/esquema_conversaciones.sql` en el *SQL Editor*. Crea `resua_conversaciones` y
    `resua_mensajes` (RLS activo) y una política que permite a usuarios autenticados **leer** `resua_fragmentos`
    (corpus público). Revise que la RPC `resua_buscar_fragmentos` sea `SECURITY INVOKER`; si es `DEFINER`, la política no es necesaria pero la RPC no aplicaría RLS.
 2. *Authentication → Providers → Email* activo. Si exige confirmar correo, las cuentas nuevas deben confirmarse antes de entrar.
@@ -63,8 +69,18 @@ cliente nuevo con ese token, de modo que `auth.uid()` identifica a quien escribe
 y las últimas fuentes. El historial completo se conserva; al modelo solo se envían los últimos 4 turnos.
 
 ### MCP
-Por defecto `servidor_mcp.py` se lanza como subproceso (stdio), versión de `mcp==2.3.0`, herramienta única
-`consultar_estado_avistamiento` (lectura, datos ficticios), sin credenciales. Para un MCP remoto: `python servidor_mcp.py --http`
+Por defecto `servidor_mcp.py` se lanza como subproceso (stdio), versión de `mcp==2.3.0`, dos herramientas de lectura sobre datos ficticios, sin credenciales:
+`consultar_estado_avistamiento(codigo)` y `buscar_avistamientos_por_especie(especie)`. La búsqueda ignora tildes y plural y acepta
+nombre común o científico («pelícanos», «Pelecanus occidentalis»); devuelve hasta 10 resultados con `total`. La especie es la
+**reportada** por quien observó: solo se considera confirmada si el estado es `identificacion_completada`.
+
+| Código | Especie reportada | Estado |
+|---|---|---|
+| AVS-1001 | pelícano pardo | pendiente_identificacion |
+| AVS-1002 | zarigüeya | en_revision |
+| AVS-1003 | iguana verde | identificacion_completada |
+| AVS-1004 | pelícano pardo | en_revision |
+| AVS-1005 | búho chico | pendiente_identificacion |
 en otro servicio y `MCP_URL=https://…/mcp`. Esta versión **no** incluye el MCP de archivos de la Clase 11 (escritura de informes):
 requería Node en el servidor y una escritura sensible; ver decisión D5 en la bitácora.
 
@@ -87,9 +103,10 @@ Abra http://127.0.0.1:7860. Antes de hacer `git add`, compruebe con `git status`
 ```bash
 cd app && python -m pytest -v
 ```
-- **39 pruebas automáticas** (sin red ni claves): historial por usuario, aislamiento entre dos usuarios aun conociendo el
+- **69 pruebas automáticas** (sin red ni claves): historial por usuario, aislamiento entre dos usuarios aun conociendo el
   identificador, dos conversaciones de una persona, recuperación tras «reinicio», validaciones del agente, acción no permitida,
-  falla técnica controlada, código desconocido, MCP real por stdio, configuración y construcción de la interfaz.
+  falla técnica controlada, código desconocido, MCP real por stdio, varias preguntas seguidas con el cliente real de Groq
+  y el reintento ante `tool_use_failed` (regresión), configuración y construcción de la interfaz.
   Resultado guardado en `../evidencias/resultados_pruebas_automaticas.txt`.
 - `tests/test_supabase_real.py` verifica **RLS en el Supabase real** con dos cuentas de prueba
   (`TEST_EMAIL_A/B`, `TEST_PASSWORD_A/B`). Se omite si faltan; **debe ejecutarse antes de entregar** (ver sección 10).
@@ -106,7 +123,16 @@ desde la URL pública y después de reiniciar el servicio. **URL:** PENDIENTE.
 ## 9. Problemas frecuentes
 - `SUPABASE_URL debe ser…` / `EMBEDDINGS_REVISION debe ser…`: revise `.env` (config.py valida al arrancar).
 - «La búsqueda no devolvió candidatos»: falta la política de lectura de `resua_fragmentos`, `CORPUS_ID` o revisión incorrectos.
-- `ERROR_TECNICO` en el recorrido: cuota de Groq, red o modelo; no significa que falten documentos.
+- `ERROR_TECNICO` en el recorrido: cuota de Groq, red o modelo; no significa que falten documentos. **Para ver el error
+  exacto:** mire la consola donde corre `python app.py` (se imprime la traza completa con `ERROR_TECNICO`); en Render, la pestaña
+  *Logs*. Con `RESUA_DEBUG=1` en el entorno, el panel «Fuentes y recorrido» también muestra `detalle_error`
+  (úselo solo en pruebas: el detalle puede contener datos internos).
+- `groq.BadRequestError … tool_use_failed`: el modelo intentó una llamada nativa a herramienta en vez del JSON del contrato.
+  La app reintenta una vez con un recordatorio de formato; si se repite, termina en `ERROR_TECNICO` sin ejecutar nada.
+- `ERROR_VALIDACION` con `detalle_error`: la decisión del modelo incumplió el contrato aun después de la corrección. Con `RESUA_DEBUG=1`
+  el panel muestra `detalle_error` y `ultima_decision`; la consola imprime la decisión completa (`Decisión inválida …`).
+- `REPETICION_SIN_AVANCE`: el modelo pidió dos veces la misma operación aun después de recibir su resultado. Revise el recorrido
+  en «Fuentes y recorrido» (debe aparecer `REPETICION_EVITADA` solo una vez y luego una respuesta).
 - Arranque lento o `Out of memory` en Render: PyTorch + modelo necesitan RAM; use una instancia con ≥2 GB.
 - Cuenta nueva no entra: confirmar el correo si el proyecto lo exige.
 

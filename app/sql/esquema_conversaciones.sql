@@ -1,4 +1,5 @@
 -- Historial de conversaciones de RESUA (ejecutar una vez en el SQL Editor de Supabase).
+-- No modifica resua_fragmentos ni sus embeddings.
 
 create table if not exists public.resua_conversaciones (
   id         uuid primary key default gen_random_uuid(),
