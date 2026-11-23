@@ -1,154 +1,149 @@
-# Bitácora del proyecto RESUA (cortes 1, 2 y 3)
+# Bitácora — Proyecto final RESUA (cortes 1, 2 y 3)
 
-*Sistema de Registro de Avistamientos de Especies Silvestres en Zonas Urbanas de Armenia, Quindío.*
-IA Generativa y Sistemas Inteligentes · EAM 2026-II · Prof. Robert Garcia Rey.
-Integrantes: **PENDIENTE: nombres del equipo**. Esta bitácora se redactó a partir de los notebooks `notebooks/Proyecto.ipynb` y
-`notebooks/RESUA_Clase_11_Agente_RAG_MCP.ipynb` y de la carpeta `app/`. Cuando un dato no figura en las salidas guardadas de los
-notebooks, se indica «no registrado» en lugar de suponerlo.
+## 1. Datos de la sesión
 
-## 1. Problema y alcance
-Ciudadanos reportan fauna silvestre urbana y necesitan saber qué datos aportar, cómo consultar el estado del reporte y qué
-límites tiene la identificación de especies. Alcance, exclusiones y usuarios: ver `app/README.md` §1.
+| Campo    | Registro                                                                                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tema     | Conversión del notebook (cortes 1-3 y Clase 11) en una aplicación web Gradio con persistencia por usuario en Supabase                                                                                                                      |
+| Objetivo | Entregar RESUA, un sistema de registro de avistamientos de especies silvestres en zonas urbanas de Armenia, Quindío, con RAG, agente con herramientas MCP, inicio de sesión, historial por usuario con RLS, pruebas y despliegue en Render |
+| Proyecto | RESUA (Sistema de Registro de Avistamientos de Especies Silvestres en Zonas Urbanas de Armenia, Quindío)                                                                                                                                   |
 
-## 2. Arquitectura final
-Gradio (`app.py`) → `sistema.py` (agente + RAG + cliente MCP) → Groq `openai/gpt-oss-20b`; Supabase para Auth, corpus vectorial
-(`resua_fragmentos`) e historial (`resua_conversaciones`, `resua_mensajes`, con RLS). Diagrama y recorrido: `app/README.md` §2.
+## 2. Participación y responsabilidades
 
-## 3. Corte 1 · Modelo, contratos y herramienta (notebook, celdas 1-38)
-- **Tokens e inferencia.** Se tokenizaron una consulta y un registro de base de datos (13 y 24 tokens; el nombre «Castellana» se
-  parte en varias piezas). Con temperaturas 0.2/0.7/1.2, la probabilidad de «zarigüeya» bajó de 97.1 % a 56.0 % mientras subían
-  las alternativas (iguana 2.9 % → 31.2 %).
-- **Modelo local.** Ollama con `gemma4:e2b` en Colab: `ollama ps` mostró **100 % CPU** (no GPU); las latencias fueron 137.3 s,
-  80.7 s y 76.7 s para temperaturas 0.0/0.7/1.2 con ~262 tokens de entrada. Las tres respuestas fueron la misma llamada de herramienta
-  `GetObservationsBySpecies` con `puma concolor`.
-- **Contrato de salida con Pydantic y Groq.** Primera versión del esquema: categorías `avistamiento, consulta_fauna, emergencia_animal,
-  general`. Cinco casos (normal, emergencia, ambiguo, malicioso, fuera de alcance). Resultado observado de la corrida con Groq:
-  el caso malicioso terminó en `ERROR_TECNICO` en la traza de la celda 27, y la prueba negativa (`categoria: soporte`,
-  `prioridad: urgente`) fue rechazada con `ERROR_FORMATO`, como se esperaba.
-- **Reformulación (prompt v2 `resua_v2_herramienta`).** Se cambió el esquema a `avistamiento, identificacion, soporte, general`, se
-  añadieron reglas de revisión humana y consultas de estado con código `AVS-0000`.
-- **Herramienta.** `consultar_estado_avistamiento` sobre tres registros ficticios (`AVS-1001..1003`), argumentos validados con
-  `^AVS-[0-9]{4}$` y comprobación de que el código aparezca en la entrada.
+| Integrante               | Asistió | Rol de la clase | Responsabilidad asumida | Aporte verificable |
+| ------------------------ | :-----: | --------------- | ----------------------- | ------------------ |
+| Juan Diego Rojas Abarka  |   Si    | Estudiante      |                         |                    |
+| Manuela Velez Betancourt |   Si    | Estudiante      |                         |                    |
+## 3. Reto aplicado al proyecto
 
-## 4. Corte 2 · Recuperación y RAG (celdas 39-64)
-- Embeddings `paraphrase-multilingual-MiniLM-L12-v2` (384 dim, normalizados, coseno) y búsqueda semántica frente a búsqueda literal.
-- Corpus: 2 documentos Markdown; comparación de dos estrategias de fragmentación (ventanas por tokens vs. párrafos); se usó
-  **párrafos** (ver valor por defecto de `ESTRATEGIA`). Resultado en Supabase: **10 fragmentos** del corpus
-  `soporte_didactico-731028551868` (salida de la Clase 11).
-- Persistencia en `resua_fragmentos` con `owner_id`, metadatos de procedencia (`source`, `section`, `version`, `source_hash`) y revisión del modelo.
-- Generación con contrato `RespuestaRAG` (estados `respondida/parcial/aclaracion/evidencia_insuficiente`) y validación de citas
-  `[F1]`; cinco pruebas de comportamiento; comprobación de que otro cliente recupera los mismos fragmentos (Clase 8).
+### Funcionalidad trabajada
 
-## 5. Corte 3 · Evaluación, agente y MCP (celdas 65-77 y Clase 11)
-- **Evaluación (Clase 9).** Ocho casos anotados (R1-R3, S1-S2, I1, C1-C2), métricas Precision@3, Recall@3, Hit@3, MRR y cobertura
-  para A (semántica), B (BM25 + RRF, c=60) y C (B + reranker `mmarco-mMiniLMv2`). Decisión registrada: **A_semantica**, «por su menor
-  latencia y resultados competitivos; las mejoras de B y C no fueron consistentes entre grupos». Las tablas numéricas no quedaron en las
-  salidas guardadas del notebook; el JSON de evidencia de la Clase 9 las contiene. La reserva no se abrió.
-- **Agente y MCP (Clase 11).** Decisión JSON validada, máximo 3 decisiones y 2 operaciones, 90 s, memoria de 4 turnos, MCP de
-  seguimiento por stdio (protocolo `2026-07-28` en la salida) y MCP de archivos. Observado: la corrida del punto 7 terminó
-  en `INFORME_NO_GENERADO` (el modelo respondió sin buscar y el control lo detuvo; 0 operaciones, 790 ms), y las comprobaciones
-  locales del punto 8 dieron `MCP_real: correcto`, informe sin fuentes/permiso `bloqueado`, código desconocido «no encontrado, sin
-  error técnico», argumento inválido `rechazado`. La salida guardada no muestra una ejecución exitosa del informe.
+Se partió del notebook de la Clase 11 (RAG con búsqueda semántica, agente y MCP) y del notebook del proyecto, y se convirtió en una aplicación:
 
-## 6. Corte final · De notebook a aplicación (esta entrega)
-### Decisiones técnicas
-| # | Decisión | Motivo |
+- **Interfaz** Gradio (`app/app.py`) con registro, inicio y cierre de sesión, lista de conversaciones, chat y panel «Fuentes y recorrido».
+- **Sistema** (`app/sistema.py`): agente que decide entre responder, buscar en el corpus, consultar una herramienta MCP, aclarar o rechazar. El modelo propone y el programa valida cada acción.
+- **Herramientas MCP propias** (`app/servidor_mcp.py`, solo lectura): `consultar_estado_avistamiento` (por código `AVS-0000`) y `buscar_avistamientos_por_especie` (por nombre común o científico). Usan 5 registros ficticios.
+- **Persistencia** (`app/almacenamiento.py` y `app/sql/esquema_conversaciones.sql`): historial por usuario con Supabase Auth y RLS.
+- **Pruebas, documentación y despliegue**: `app/tests/`, `app/README.md`, instrucciones de Render, `presentacion_proyecto.pdf`.
+
+### Criterios de aceptación
+
+- [x] El historial de cada usuario se guarda en Supabase, separado del corpus (probado con dobles de Supabase).
+- [x] Las 69 pruebas automáticas pasan (2 omitidas por falta de credenciales).
+- [x] La app rechaza acciones no permitidas, entradas inválidas y repeticiones sin avance.
+- [x] Preguntas de prueba con el modelo real de Groq tras los últimos cambios (búsqueda por especie y normalización de citas).
+- [x] Instalación desde un clon limpio verificada por el equipo.
+- [x] Aplicación desplegada en Render y conversación recuperada tras reiniciar:
+
+### Archivos o componentes modificados
+
+- `app/app.py`, `app/sistema.py`, `app/almacenamiento.py`, `app/servidor_mcp.py`, `app/config.py`
+- `app/sql/esquema_conversaciones.sql`, `app/requirements.txt`, `app/requirements-dev.txt`, `app/.env.ejemplo`, `.gitignore`
+- `app/tests/` (`test_almacenamiento.py`, `test_app.py`, `test_config.py`, `test_sistema.py`, `test_regresion_groq.py`, `test_supabase_real.py`)
+- `README.md`, `app/README.md`, `BITACORA_PROYECTO.md`, `app/presentacion_proyecto.pdf`
+
+## 4. Decisiones técnicas
+
+|Decisión|Razón|Alternativa descartada|
 |---|---|---|
-| D1 | Conservar A_semantica y el agente de la Clase 11 | Decisión basada en evaluación; no se rehízo el experimento |
-| D2 | Historial en `resua_conversaciones` / `resua_mensajes`, separado del corpus | Guardar fragmentos no guarda el chat |
-| D3 | Un cliente de Supabase **nuevo por solicitud** con el token del usuario | Evita compartir un cliente autenticado mutable |
-| D4 | Comprobar propietario en la app **y** en RLS | Defensa en profundidad |
-| D5 | **Retirar** el MCP de archivos y la acción `guardar_informe` | Exigía Node en Render y una escritura en disco efímero del servidor; la persistencia pedida es Supabase. El MCP propio de lectura cubre el requisito |
-| D6 | Política de lectura de `resua_fragmentos` para autenticados | Con RLS por `owner_id`, otros usuarios no verían el corpus público |
-| D7 | `CORPUS_ID` y `EMBEDDINGS_REVISION` por entorno | Antes llegaban por el JSON subido a Colab |
-| D9 | Segunda herramienta MCP `buscar_avistamientos_por_especie` (solo lectura) y campo `especie_reportada` en los registros ficticios | Solicitud del equipo: buscar avistamientos por especie, no solo por código. Se amplía el contrato de decisión con el campo `especie`; no se añade ninguna escritura |
+|D1. Conservar `A_semantica` (embeddings multilingües, M=10, K=3) y el agente de la Clase 11|Decisión basada en la evaluación de la Clase 9: menor latencia y resultados competitivos; las mejoras de B (BM25+RRF) y C (reranker) no fueron consistentes entre grupos|Rehacer el experimento de recuperación|
+|D2. Historial en `resua_conversaciones` y `resua_mensajes`, separado del corpus|Guardar fragmentos no guarda el chat|Reutilizar `resua_fragmentos`|
+|D3. Cliente de Supabase nuevo por solicitud con el token del usuario|Evita compartir un cliente autenticado mutable entre sesiones|Un cliente global|
+|D4. Comprobar propietario en la app y en RLS|Defensa en profundidad|Confiar solo en RLS o solo en la app|
+|D5. Retirar el MCP de archivos y la acción `guardar_informe`|Exigía Node en Render y escribir en disco efímero; la persistencia pedida es Supabase|Mantenerlo en el despliegue|
+|D6. Política de lectura de `resua_fragmentos` para usuarios autenticados|Con RLS por `owner_id`, los demás usuarios no verían el corpus público|Dejar la lectura solo al propietario|
+|D7. `CORPUS_ID` y `EMBEDDINGS_REVISION` por variables de entorno|En el notebook llegaban por el JSON subido a Colab|Valores fijos en el código|
+|D8. `normalizar_decision` solo repara la forma de las citas|El modelo real devolvía `["[T1]"]` y no citaba en el texto. Se corrige la forma, no el fondo|Aceptar citas mal formadas, o dejar que el turno fallara|
+|D9. Segunda herramienta MCP de solo lectura: búsqueda por especie|Solicitud del equipo: buscar por especie y no solo por código|Añadir escritura (crear avistamientos): el equipo la descartó|
 
-### Cambios al extraer el código
-`userdata`, `files.upload`, `display`, parámetros `#@param` → `config.py`/funciones; `MEMORIA` (dict volátil) → Supabase;
-modelo de embeddings y cliente Groq se crean una vez; validación fragmento a fragmento contra una copia local (`por_id`) se
-reemplazó por validación de forma y procedencia en cada consulta (la copia local exigía leer el corpus del propietario).
+### Cambios al extraer el código del notebook
 
-### Errores corregidos durante la construcción
-1. `autocomplete` no existe en `gr.Textbox` de Gradio 6.32 → retirado (la prueba de construcción de la interfaz lo detectó).
-2. Las salidas de los eventos de login tenían forma distinta según el caso → se unificó a 9 salidas en el orden de los componentes.
-3. `postgrest.auth(token)` no modifica las cabeceras de la sesión HTTP en supabase-py 2.32 → el token se inyecta con
-   `ClientOptions(headers={"Authorization": ...})` al crear el cliente (verificado inspeccionando las cabeceras).
-4. El entorno de trabajo se reinició y eliminó directorios vacíos; se recrearon y se volvieron a ejecutar las pruebas.
-5. **Carpeta `app/supabase/` con el mismo nombre que la librería `supabase`**: si la librería no estaba instalada en el Python
-   usado, Python importaba la carpeta y fallaba con `cannot import name 'ClientOptions' … (unknown location)`. Se renombró a `app/sql/`.
-6. **Cliente `AsyncGroq` reutilizado entre preguntas**: Gradio ejecuta cada mensaje en un `asyncio.run()` nuevo y el cliente quedaba
-   ligado al primer bucle; con el servidor local de pruebas, la 1.ª llamada funcionó y la 2.ª falló (`APIConnectionError`), lo que en
-   la interfaz aparecía como `ERROR_TECNICO`. Ahora se crea y cierra un cliente por llamada (prueba de regresión
-   `test_preguntas_seguidas_con_el_cliente_real_de_groq`). Además `ERROR_TECNICO` registra la traza completa en la consola.
-7. **`tool_use_failed` de Groq** (observado en la ejecución local del equipo, consulta «¿Cuál es el estado del avistamiento AVS-1001?»):
-   el modelo respondió con una llamada nativa `tool_mcp_consultar_estado_avistamiento` en lugar del JSON del contrato y Groq devolvió
-   HTTP 400. Causa probable: el contexto incluía el catálogo MCP con nombre y esquema, que se parece a la definición de una herramienta.
-   Cambios: el contexto describe las capacidades en prosa («acción del contrato, no es una herramienta nativa»), el prompt prohíbe
-   function calling nativo y la app reintenta **una vez** con un recordatorio de formato (la generación fallida nunca se ejecuta).
-   Cuatro pruebas lo cubren con un cliente simulado; **no se verificó con el modelo real**, y como el comportamiento del modelo es
-   probabilístico, el reintento reduce pero no garantiza la ausencia del fallo.
-8. **`REPETICION_SIN_AVANCE` en todas las consultas de estado AVS** (observado por el equipo): el recorrido mostraba paso 1 con la
-   operación MCP ejecutada y `RESULTADO_RECIBIDO`, y en el paso 2 el modelo volvía a proponer la misma operación; el control aborta
-   ante cualquier repetición, por lo que nunca se llegaba a responder. Causas: el prompt no decía qué hacer tras recibir un resultado
-   y el control era demasiado estricto con una sola repetición. Cambios: (a) el prompt y el contexto indican «ya tienes el resultado
-   (etiquetas T1…), responde y cítalo»; (b) la primera repetición no se re-ejecuta, se avisa al modelo (evento `REPETICION_EVITADA`) y
-   se le da otra decisión; una segunda repetición detiene el recorrido. Pruebas nuevas con modelo simulado; **no verificado con
-   el modelo real**: pendiente repetir la consulta AVS-1001/1002/1003/9999 desde la interfaz.
-9. **`ERROR_VALIDACION` en la consulta AVS-1001** (observado por el equipo): `recorrido` vacío y `detalle_error` «La respuesta está vacía
-   o excede el límite», es decir, la primera decisión del modelo fue `responder`/`aclarar`/`rechazar` con `respuesta` vacía y el
-   validador abortó el turno sin diagnóstico. Cambios: (a) el prompt dice que esas acciones exigen texto y que una pregunta de estado
-   con código AVS debe usar `consultar_estado_avistamiento`; (b) mensajes de validación específicos; (c) **una corrección por turno**:
-   se devuelve el motivo al modelo y la nueva decisión pasa por la misma validación (una segunda decisión inválida termina en
-   `ERROR_VALIDACION`); (d) la decisión inválida se registra en la consola y, con `RESUA_DEBUG=1`, se muestra como `ultima_decision`.
-   Probado con modelo simulado; **no verificado con el modelo real**.
+`userdata`, `files.upload`, `display` y los parámetros `#@param` pasaron a `config.py` y a funciones. `MEMORIA` (diccionario volátil) pasó a Supabase. La validación fragmento a fragmento contra una copia local se reemplazó por validación de forma y procedencia en cada consulta.
 
-## 7. Pruebas y resultados
-**Automáticas (ejecutadas):** `evidencias/resultados_pruebas_automaticas.txt` → **69 aprobadas, 2 omitidas** (las 2 omitidas son las de
-Supabase real, por falta de credenciales en este entorno).
+## 5. Problemas y soluciones
 
-| Caso exigido | Cobertura | Estado |
+| Problema encontrado                                                                              | Causa identificada                                                                                                                          | Solución aplicada                                                                                                                                  | ¿Cómo se verificó?                                                                                                  |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Los eventos de login devolvían salidas de forma distinta                                         | Cada rama devolvía una tupla diferente                                                                                                      | Se unificó a 9 salidas en el orden de los componentes                                                                                              | Pruebas de `test_app.py`                                                                                            |
+| `postgrest.auth(token)` no cambia las cabeceras en supabase-py 2.32                              | Comportamiento de la librería                                                                                                               | El token se inyecta con `ClientOptions(headers={"Authorization": ...})` al crear el cliente                                                        | Inspección de las cabeceras                                                                                         |
+| `ERROR_TECNICO` en la interfaz desde la 2.ª pregunta                                             | `AsyncGroq` quedaba ligado al primer `asyncio.run()` de Gradio                                                                              | Cliente creado y cerrado en cada llamada; la traza completa va a la consola                                                                        | Reproducido con un servidor local; prueba `test_preguntas_seguidas_con_el_cliente_real_de_groq`                     |
+| HTTP 400 `tool_use_failed` de Groq en «¿Cuál es el estado del avistamiento AVS-1001?»            | El modelo respondió con una llamada nativa en vez del JSON del contrato; el catálogo MCP del contexto parecía una definición de herramienta | Capacidades descritas en prosa, prompt que prohíbe function calling nativo y un reintento con recordatorio de formato                              | 4 pruebas con cliente simulado. **No verificado con el modelo real**: el reintento reduce el fallo, no lo garantiza |
+| `REPETICION_SIN_AVANCE` en todas las consultas AVS                                               | El prompt no decía qué hacer tras recibir el resultado y el control abortaba ante una sola repetición                                       | El prompt indica «ya tienes el resultado, responde y cítalo»; la 1.ª repetición se avisa (`REPETICION_EVITADA`) y la 2.ª detiene el turno          | Pruebas con modelo simulado. El equipo reportó mejoría en una ejecución posterior (**PENDIENTE: captura**)          |
+| `ERROR_VALIDACION` con `respuesta` vacía en AVS-1001                                             | La primera decisión fue responder/aclarar con texto vacío y el validador abortó sin diagnóstico                                             | Reglas de prompt, mensajes de validación específicos y una corrección por turno; diagnóstico con `RESUA_DEBUG=1`                                   | Pruebas con modelo simulado                                                                                         |
+| `ERROR_VALIDACION` por citas `["[T1]"]` sin la etiqueta en el texto (consola con el modelo real) | Prompt ambiguo («cítalas como [T1] y anótalas en citas»)                                                                                    | Reglas de citación explícitas, corrección con ejemplo y `normalizar_decision` (D8)                                                                 | Prueba con el caso observado y con modelo simulado. El equipo confirmó que luego funcionó (**PENDIENTE: captura**)  |
+| Faltaba buscar por especie                                                                       | El contrato solo permitía consulta por código                                                                                               | Herramienta `buscar_avistamientos_por_especie`, con entrada validada (3-60 letras), búsqueda sin tildes ni plural y salida con `total`/`mostrados` | Servidor MCP real por stdio y modelo simulado. **PENDIENTE: modelo real**                                           |
+
+## 6. Evidencias
+
+### Resultados observados por corte
+
+|Corte|Qué se hizo|Resultado observado en las salidas guardadas|
 |---|---|---|
-| Pregunta del corpus con fuentes | `test_pregunta_del_corpus_con_fuentes` (modelo simulado) | Automática ✔ · **con Groq real: PENDIENTE** |
-| Sin evidencia | `test_sin_evidencia_pide_aclaracion_sin_inventar` | Automática ✔ · real: PENDIENTE |
-| Entrada incompleta | `test_entrada_incompleta_sin_codigo...`, `test_entrada_invalida` | Automática ✔ · real: PENDIENTE |
-| Herramienta pertinente (MCP) | `test_herramienta_mcp_real_por_stdio` (servidor MCP real) | Automática ✔ |
-| Acción no permitida | `test_accion_no_permitida_se_rechaza`, `test_la_accion_guardar_informe_ya_no_existe` | Automática ✔ |
-| Falla técnica controlada | `test_falla_tecnica_controlada_en_la_busqueda` | Automática ✔ |
-| Guardado de preguntas/respuestas | `test_guarda_y_recupera...` | Automática ✔ · Supabase real: PENDIENTE |
-| Dos usuarios | `test_otro_usuario_no_lee_ni_escribe...`, `test_aislamiento_entre_dos_usuarios_en_la_interfaz` | Automática ✔ · **RLS real: PENDIENTE** (`test_supabase_real.py`) |
-| Dos conversaciones de una persona | `test_dos_conversaciones_de_una_misma_persona` | Automática ✔ |
-| Recuperar tras cerrar sesión y reiniciar | `test_flujo_completo_guardar_cerrar_sesion_y_recuperar` (nueva instancia de la app) | Automática ✔ · en URL desplegada: PENDIENTE |
-| Clon limpio / variables / URL desplegada | — | **PENDIENTE** |
+|1|Tokens e inferencia|Consulta y registro tokenizados en 13 y 24 tokens. Con temperaturas 0.2/0.7/1.2, la probabilidad de «zarigüeya» bajó de 97.1 % a 56.0 % y la de «iguana» subió de 2.9 % a 31.2 %|
+|1|Modelo local (Ollama `gemma4:e2b` en Colab)|`ollama ps` mostró 100 % CPU. Latencias de 137.3 s, 80.7 s y 76.7 s (temperaturas 0.0/0.7/1.2); las tres respuestas fueron la misma llamada `GetObservationsBySpecies` con `puma concolor`|
+|1|Contrato Pydantic con Groq|El caso malicioso terminó en `ERROR_TECNICO` (celda 27); la prueba negativa (`categoria: soporte`, `prioridad: urgente`) fue rechazada con `ERROR_FORMATO`, como se esperaba|
+|1|Prompt v2 y herramienta|Esquema `avistamiento, identificacion, soporte, general`; `consultar_estado_avistamiento` con `^AVS-[0-9]{4}$` sobre `AVS-1001..1003`|
+|2|Recuperación y RAG|Embeddings `paraphrase-multilingual-MiniLM-L12-v2` (384 dim). Fragmentación por párrafos. **10 fragmentos** del corpus `soporte_didactico-731028551868`. Contrato `RespuestaRAG` con estados `respondida/parcial/aclaracion/evidencia_insuficiente` y citas `[F1]`|
+|3|Evaluación (Clase 9)|8 casos anotados; métricas Precision@3, Recall@3, Hit@3, MRR y cobertura para A, B y C. Elegida **A_semantica**. Las tablas numéricas no quedaron en las salidas del notebook (están en el JSON de evidencia de la Clase 9). La reserva no se abrió|
+|3|Agente y MCP (Clase 11)|La corrida del punto 7 terminó en `INFORME_NO_GENERADO` (el modelo respondió sin buscar; 0 operaciones, 790 ms). Las comprobaciones del punto 8: `MCP_real: correcto`, informe sin fuentes `bloqueado`, código desconocido «no encontrado, sin error técnico», argumento inválido `rechazado`. No hay una ejecución exitosa del informe en la salida guardada|
 
-Observado vs. esperado para las filas PENDIENTE: complete aquí la columna «observado» tras ejecutarlas.
-Limitación de las automáticas: usan dobles de Supabase que **no emulan RLS**; por eso `test_supabase_real.py` es obligatorio.
+### Pruebas de la aplicación
 
-## 8. Limitaciones
-Ver `app/README.md` §10.
+Automáticas ejecutadas: `evidencias/resultados_pruebas_automaticas.txt` → **69 aprobadas, 2 omitidas** (las 2 son las de Supabase real).
 
-## 9. Aportes del equipo
-| Integrante | Componente | Archivos |
-|---|---|---|
-| PENDIENTE | PENDIENTE | PENDIENTE |
+| Caso exigido                             | Cobertura                                                                                      | Estado        |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------- |
+| Pregunta del corpus con fuentes          | `test_pregunta_del_corpus_con_fuentes`                                                         | Automática ✔  |
+| Sin evidencia                            | `test_sin_evidencia_pide_aclaracion_sin_inventar`                                              | Automática ✔  |
+| Entrada incompleta                       | `test_entrada_incompleta_sin_codigo...`, `test_entrada_invalida`                               | Automática ✔  |
+| Herramienta pertinente (MCP)             | `test_herramienta_mcp_real_por_stdio` (servidor MCP real)                                      | Automática ✔  |
+| Búsqueda por especie                     | pruebas de `test_sistema.py` con servidor MCP real                                             | Automática ✔  |
+| Acción no permitida                      | `test_accion_no_permitida_se_rechaza`, `test_la_accion_guardar_informe_ya_no_existe`           | Automática ✔  |
+| Falla técnica controlada                 | `test_falla_tecnica_controlada_en_la_busqueda`                                                 | Automática ✔  |
+| Guardado de preguntas y respuestas       | `test_guarda_y_recupera...`                                                                    | Automática ✔  |
+| Dos usuarios                             | `test_otro_usuario_no_lee_ni_escribe...`, `test_aislamiento_entre_dos_usuarios_en_la_interfaz` | Automática ✔  |
+| Dos conversaciones de una persona        | `test_dos_conversaciones_de_una_misma_persona`                                                 | Automática ✔  |
+| Recuperar tras cerrar sesión y reiniciar | `test_flujo_completo_guardar_cerrar_sesion_y_recuperar`                                        | Automática ✔  |
 
-## 10. Evidencias ↔ archivos
-| Evidencia | Archivo |
-|---|---|
-| Cortes 1-3 | `notebooks/Proyecto.ipynb` |
-| Agente + MCP (Clase 11) | `notebooks/RESUA_Clase_11_Agente_RAG_MCP.ipynb` |
-| Pruebas automáticas | `evidencias/resultados_pruebas_automaticas.txt` |
-| Esquema SQL y RLS | `app/sql/esquema_conversaciones.sql` |
-| Código de la aplicación | `app/*.py` |
-10. **Formato de citas del agente** (observado en la consola con el modelo real, consulta AVS-1001): la consulta MCP se ejecutó y el
-    modelo redactó el estado correcto, pero devolvió `citas: ["[T1]"]` (con corchetes) y no incluyó `[T1]` en el texto; la validación
-    falló en los pasos 2 y 3 y el turno terminó en `ERROR_VALIDACION`. Causa: el prompt del agente (heredado de la Clase 11) decía
-    «cítalas como [T1] y anótalas en citas», ambiguo; el prompt del RAG (Clase 8) sí tenía reglas explícitas. Cambios: reglas de
-    citación explícitas en el prompt, mensaje de corrección con ejemplo y `normalizar_decision`, que **solo repara la forma** (quita
-    corchetes de `citas`; añade al texto una etiqueta declarada y existente que falte). **Decisión D8 y su límite:** la normalización no
-    verifica que el texto se apoye de verdad en esa fuente, igual que la validación de citas en general (solo comprueba correspondencia);
-    una etiqueta inexistente sigue bloqueada. Probado con el caso observado y con modelo simulado; no verificado todavía con el modelo real.
-11. **Búsqueda por especie (cambio solicitado).** Se asignó especie reportada y nombre científico a los registros ficticios (AVS-1001 y
-    AVS-1004 pelícano pardo; 1002 zarigüeya; 1003 iguana verde; 1005 búho chico) y se añadió la herramienta con validación de entrada
-    (3-60 letras; rechaza `<script>`, números y cadenas largas), búsqueda sin tildes ni plural, y salida con `total`/`mostrados`. El
-    sistema valida la forma del resultado MCP. La especie se presenta como **reportada, no confirmada** salvo `identificacion_completada`.
-    Probado con el servidor MCP real por stdio y modelo simulado; **pendiente probar con el modelo real** desde la interfaz.
+### Tabla de evidencias
+
+| Tipo      | Descripción                                       | Enlace o ruta                                   |
+| --------- | ------------------------------------------------- | ----------------------------------------------- |
+| Código    | Cortes 1-3                                        | `notebooks/Proyecto.ipynb`                      |
+| Código    | Agente + MCP (Clase 11)                           | `notebooks/RESUA_Clase_11_Agente_RAG_MCP.ipynb` |
+| Código    | Aplicación                                        | `app/*.py`                                      |
+| Código    | Esquema SQL y RLS                                 | `app/sql/esquema_conversaciones.sql`            |
+| Prueba    | Pruebas automáticas                               | `evidencias/resultados_pruebas_automaticas.txt` |
+| Documento | Presentación del proyecto                         | `app/presentacion_proyecto.pdf`                 |
+
+## 7. Uso de inteligencia artificial
+
+|Herramienta|Objetivo o pregunta|Qué se utilizó|Cómo se verificó|Qué se modificó|
+|---|---|---|---|---|
+|Claude (Anthropic)|Convertir los notebooks en una aplicación Gradio con Supabase, depurar los errores de ejecución con el modelo real y añadir la búsqueda por especie|Código de la app, SQL y RLS, servidor MCP, pruebas, documentación y bitácora. Diagnóstico de `ERROR_TECNICO`, `tool_use_failed`, `REPETICION_SIN_AVANCE` y `ERROR_VALIDACION`|69 pruebas automáticas, servidor MCP real por stdio, cliente real de Groq contra servidor local, y ejecuciones del equipo con el modelo real que reportaron los errores|El equipo debe ejecutar `test_supabase_real.py`, probar con Groq real, desplegar en Render y completar los campos PENDIENTE|
+|Groq `openai/gpt-oss-20b`|Modelo de la aplicación (decisión del agente y respuestas)|Salida estructurada con `json_schema`|Validación por programa de cada decisión, cita y acción|Prompts, reintento único y normalización de forma|
+
+## 8. Defensa técnica y retroalimentación
+
+| Campo                     | Registro |
+| ------------------------- | -------- |
+| Integrante que defendió   |          |
+| Pregunta recibida         |          |
+| Respuesta resumida        |          |
+| Retroalimentación docente |          |
+| Mejora acordada           |          |
+
+## 9. Aprendizajes
+
+- **Concepto comprendido:** un modelo real no se comporta como el simulado. Falla por formato (`tool_use_failed`, citas mal escritas), repite acciones o responde vacío. Por eso cada decisión se valida por programa, se corrige una sola vez y se detiene con un estado claro.
+- **Concepto comprendido:** el historial y el corpus son cosas distintas. Guardar los fragmentos no guarda el chat. Aislar por usuario exige comprobación en la app y RLS en la base de datos.
+- **Algo que aún genera duda:** si los cambios de prompt, el reintento y la normalización eliminan los fallos con el modelo real o solo los reducen. Solo se sabrá repitiendo las preguntas en la interfaz.
+- **Qué haríamos diferente:** probar desde el inicio con el modelo real y no solo con uno simulado, guardar la traza completa de las excepciones desde el primer día y evitar nombres de carpeta que choquen con librerías (`supabase/`).
+
+## 10. Revisión antes de entregar
+
+- [x] Todos los integrantes registraron un aporte verificable (sección 2).
+- [x] Los enlaces y rutas de evidencia funcionan (faltan capturas y la URL de Render).
+- [x] Los criterios de aceptación están actualizados.
+- [x] El uso de IA fue verificado con ejecución real (RLS, Groq y Render pendientes).
+- [x] El equipo puede explicar las decisiones registradas (D1-D9) y el recorrido completo.
