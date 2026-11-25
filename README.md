@@ -12,6 +12,6 @@ validadas y un servidor MCP de seguimiento. Cada persona inicia sesión y sus co
 | Notebooks de los cortes 1-3 (Colab) | [`notebooks/`](notebooks/) |
 | Resultados de pruebas | [`evidencias/`](evidencias/) |
 | Presentación | [`app/presentacion_proyecto.pdf`](app/presentacion_proyecto.pdf) |
-| URL desplegada | **PENDIENTE: completar tras desplegar en Render** |
+| URL desplegada | https://electiva-asistentemultimodalresua.onrender.com |
 
 Inicio rápido: ver «Ejecución desde un clon limpio» en [`app/README.md`](app/README.md).
