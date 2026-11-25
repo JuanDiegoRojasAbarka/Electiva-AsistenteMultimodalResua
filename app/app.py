@@ -182,11 +182,15 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = cargar_config()
     sistema = Sistema(cfg)
+    demo = Aplicacion(cfg, sistema).construir()
+    # El puerto se abre ANTES de cargar el modelo: Render busca un puerto abierto y, si la descarga
+    # del modelo tarda, declara "No open ports detected".
+    demo.queue(default_concurrency_limit=4).launch(
+        server_name=cfg.host, server_port=cfg.port, prevent_thread_lock=True)
     sistema.precalentar()                      # el modelo de embeddings se descarga aquí, una sola vez
     asyncio.run(sistema.descubrir_mcp())       # falla al arrancar si el MCP no está disponible
-    demo = Aplicacion(cfg, sistema).construir()
-    demo.queue(default_concurrency_limit=4).launch(server_name=cfg.host, server_port=cfg.port)
-
+    logging.getLogger("resua").info("RESUA lista en %s:%s", cfg.host, cfg.port)
+    demo.block_thread()
 
 if __name__ == "__main__":
     main()

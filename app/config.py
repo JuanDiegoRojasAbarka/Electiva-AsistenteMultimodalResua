@@ -51,6 +51,6 @@ def cargar_config(requerir_groq: bool = True) -> Config:
         corpus_id=corpus,
         embeddings_revision=rev,
         mcp_url=os.environ.get("MCP_URL", "").strip(),
-        host=os.environ.get("GRADIO_SERVER_NAME", "127.0.0.1"),
+        host=os.environ.get("GRADIO_SERVER_NAME") or ("0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"),
         port=int(os.environ.get("PORT", "7860")),
     )
