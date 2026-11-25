@@ -1,6 +1,21 @@
 -- Historial de conversaciones de RESUA (ejecutar una vez en el SQL Editor de Supabase).
 -- No modifica resua_fragmentos ni sus embeddings.
 
+create extension if not exists vector with schema extensions;
+
+create table if not exists public.resua_fragmentos (
+  owner_id      uuid  not null references auth.users(id) on delete cascade,
+  corpus_id     text  not null,
+  chunk_id      text  not null,
+  content       text  not null,
+  metadata      jsonb not null default '{}'::jsonb,
+  configuracion jsonb not null default '{}'::jsonb,
+  embedding     extensions.vector(384) not null,
+  primary key (owner_id, corpus_id, chunk_id)
+);
+
+alter table public.resua_fragmentos enable row level security;
+
 create table if not exists public.resua_conversaciones (
   id         uuid primary key default gen_random_uuid(),
   owner_id   uuid not null default auth.uid() references auth.users(id) on delete cascade,
