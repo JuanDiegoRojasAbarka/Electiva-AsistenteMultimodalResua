@@ -42,15 +42,6 @@ class Autenticador:
             raise PermissionError("Correo o contraseña incorrectos, o correo sin confirmar.") from None
         return self._sesion(r)
 
-    def registrar(self, email: str, password: str) -> dict | None:
-        """Devuelve la sesión si el proyecto no exige confirmar el correo; None si debe confirmarse."""
-        try:
-            r = self._fabrica(self._url, self._clave).auth.sign_up(
-                {"email": email.strip(), "password": password})
-        except Exception as e:
-            raise ValueError("No se pudo crear la cuenta (revisa el correo y que la contraseña tenga 6+ caracteres).") from e
-        return self._sesion(r) if r.session is not None and r.user is not None else None
-
     def renovar(self, refresh_token: str) -> dict:
         try:
             r = self._fabrica(self._url, self._clave).auth.refresh_session(refresh_token)

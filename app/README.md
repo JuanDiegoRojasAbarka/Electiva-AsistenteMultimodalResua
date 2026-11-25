@@ -55,7 +55,9 @@ el modelo (~470 MB).
 1. En el proyecto del RAG, ejecute `sql/esquema_conversaciones.sql` en el *SQL Editor*. Crea `resua_conversaciones` y
    `resua_mensajes` (RLS activo) y una política que permite a usuarios autenticados **leer** `resua_fragmentos`
    (corpus público). Revise que la RPC `resua_buscar_fragmentos` sea `SECURITY INVOKER`; si es `DEFINER`, la política no es necesaria pero la RPC no aplicaría RLS.
-2. *Authentication → Providers → Email* activo. Si exige confirmar correo, las cuentas nuevas deben confirmarse antes de entrar.
+2. *Authentication → Providers → Email* activo. **La app no permite crear cuentas**: cree los usuarios a mano en
+   *Authentication → Users → Add user* (marque «Auto Confirm User») y entregue las credenciales. Para que nadie pueda
+   registrarse por la API, desactive *Authentication → Sign In / Providers → «Allow new users to sign up»*.
 3. Use la **clave publicable** (`sb_publishable_…`). Nunca la `service_role`/secreta.
 
 ### Autenticación y RLS
@@ -134,7 +136,7 @@ desde la URL pública y después de reiniciar el servicio. **URL:** PENDIENTE.
 - `REPETICION_SIN_AVANCE`: el modelo pidió dos veces la misma operación aun después de recibir su resultado. Revise el recorrido
   en «Fuentes y recorrido» (debe aparecer `REPETICION_EVITADA` solo una vez y luego una respuesta).
 - Arranque lento o `Out of memory` en Render: PyTorch + modelo necesitan RAM; use una instancia con ≥2 GB.
-- Cuenta nueva no entra: confirmar el correo si el proyecto lo exige.
+- Un usuario no entra: confirme que fue creado en *Authentication → Users* con «Auto Confirm User» y que la contraseña es correcta.
 
 ## 10. Limitaciones y pendientes
 - Corpus muy pequeño (10 fragmentos): la calidad de recuperación no se generaliza.
@@ -143,3 +145,9 @@ desde la URL pública y después de reiniciar el servicio. **URL:** PENDIENTE.
 - **Sin verificar en este repositorio:** ejecución contra Supabase/Groq reales, RLS real, despliegue en Render e instalación desde
   un clon limpio (solo se probó con dobles de prueba y un entorno virtual nuevo). Registre su resultado en `evidencias/`.
 - Sin límite de intentos de login propio (lo gestiona Supabase Auth); sin recuperación de contraseña en la interfaz.
+
+### Render: «No open ports detected»
+Render exige un puerto abierto poco después de arrancar. La app abre el puerto **antes** de cargar el modelo de embeddings
+y escucha en `0.0.0.0` cuando existe `PORT` (aunque falte `GRADIO_SERVER_NAME`). Si aun así aparece el mensaje: confirme que
+el *Start Command* es `python app.py`, que el *Root Directory* es `app` y revise en los logs si la app se cayó por una variable
+faltante antes de llegar a `launch`. Mientras carga el modelo, las primeras preguntas pueden tardar.

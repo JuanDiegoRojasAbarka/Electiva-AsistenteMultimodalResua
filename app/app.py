@@ -57,7 +57,7 @@ class Aplicacion:
         return [{"role": "user" if m["rol"] == "usuario" else "assistant", "content": m["contenido"]} for m in msgs]
 
     # -- eventos ----------------------------------------------------------
-    def entrar(self, email, password, registrarse):
+    def entrar(self, email, password):
         """Salidas: sesion, acceso, panel, lista, conv, chat, fuentes, quien, estado."""
         def fallo(msg):
             return (None, gr.update(visible=True), gr.update(visible=False), gr.update(choices=[], value=None),
@@ -65,12 +65,7 @@ class Aplicacion:
         if not EMAIL_RE.fullmatch((email or "").strip()) or not password:
             return fallo("Escribe un correo válido y una contraseña.")
         try:
-            if registrarse:
-                sesion = self.auth.registrar(email, password)
-                if sesion is None:
-                    return fallo("Cuenta creada. Confirma tu correo y luego inicia sesión.")
-            else:
-                sesion = self.auth.iniciar_sesion(email, password)
+            sesion = self.auth.iniciar_sesion(email, password)
             opciones = self._opciones(self._almacenamiento(sesion["access_token"]))
         except (PermissionError, ValueError) as e:
             return fallo(str(e))
@@ -152,8 +147,7 @@ class Aplicacion:
             with gr.Group(visible=True) as acceso:
                 email = gr.Textbox(label="Correo")
                 password = gr.Textbox(label="Contraseña", type="password")
-                with gr.Row():
-                    b_in, b_reg = gr.Button("Iniciar sesión", variant="primary"), gr.Button("Crear cuenta")
+                b_in = gr.Button("Iniciar sesión", variant="primary")
             with gr.Row(visible=False) as panel:
                 with gr.Column(scale=1):
                     quien = gr.Markdown("")
@@ -166,8 +160,7 @@ class Aplicacion:
                     with gr.Accordion("Fuentes y recorrido", open=False):
                         fuentes = gr.Markdown("")
             salida_entrar = [sesion, acceso, panel, lista, conv, chat, fuentes, quien, estado]
-            b_in.click(lambda e, p: self.entrar(e, p, False), [email, password], salida_entrar)
-            b_reg.click(lambda e, p: self.entrar(e, p, True), [email, password], salida_entrar)
+            b_in.click(self.entrar, [email, password], salida_entrar)
             b_salir.click(self.salir, None, salida_entrar)
             b_nueva.click(self.nueva, [sesion], [lista, conv, chat, fuentes, estado])
             lista.input(self.abrir, [sesion, lista], [conv, chat, fuentes, estado])
